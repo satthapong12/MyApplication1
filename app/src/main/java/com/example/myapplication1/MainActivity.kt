@@ -5,6 +5,8 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.Button
 import android.widget.Toast
@@ -18,14 +20,37 @@ class MainActivity : AppCompatActivity() {
     private val bluetoothAdapter: BluetoothAdapter? by lazy { BluetoothAdapter.getDefaultAdapter() }
     private var bluetoothSocket: BluetoothSocket? = null
     private var outputStream: OutputStream? = null
+    private val MY_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         val sendDataButton: Button = findViewById(R.id.sendButton)
-        sendDataButton.setOnClickListener{
+        sendDataButton.setOnClickListener {
             sendData()
+        }
+    }
+
+    private fun checkBluetoothPermission() {
+        if (checkSelfPermission(android.Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.BLUETOOTH), REQUEST_BLUETOOTH_PERMISSION)
+        } else {
+            sendData()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            REQUEST_BLUETOOTH_PERMISSION -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    sendData()
+                } else {
+                    showToast("Bluetooth permission denied")
+                }
+            }
         }
     }
 
@@ -39,27 +64,25 @@ class MainActivity : AppCompatActivity() {
             showToast("Bluetooth is not enabled")
             return
         }
+
         val pairedDevices: Set<BluetoothDevice> = bluetoothAdapter!!.bondedDevices
-        if (checkSelfPermission(android.Manifest.permission.BLUETOOTH)== PackageManager.PERMISSION_GRANTED){
+        if (checkSelfPermission(android.Manifest.permission.BLUETOOTH) == PackageManager.PERMISSION_GRANTED) {
             if (pairedDevices.isEmpty()) {
                 showToast("No paired devices found")
                 return
             }
-            else{
-                requestPermissions(arrayOf(android.Manifest.permission.BLUETOOTH), REQUEST_BLUETOOTH_PERMISSION)
-            }
         }
-
 
         val device: BluetoothDevice = pairedDevices.first()
 
         try {
-            bluetoothSocket = device.createRfcommSocketToServiceRecord(UUID.randomUUID())
+            bluetoothSocket = device.createRfcommSocketToServiceRecord(MY_UUID)
             bluetoothSocket!!.connect()
 
             outputStream = bluetoothSocket!!.outputStream
             val message = "Hello Device 2!"
             outputStream!!.write(message.toByteArray())
+            outputStream!!.flush()
 
             showToast("Data sent successfully")
 
@@ -80,7 +103,8 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
-    companion object{
-        private const val REQUEST_BLUETOOTH_PERMISSION= 1
+
+    companion object {
+        private const val REQUEST_BLUETOOTH_PERMISSION = 1
     }
 }
